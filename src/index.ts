@@ -36,14 +36,6 @@ DO NOT write "You are dead." in combat narration unless rule (1) or (2) above ap
 
 This rule OVERRIDES every other rule in this document. Combat rules do not override it. Narrative momentum does not override it. Character logic does not override it. Even if the scene "has to" end in death, STOP at the cliffhanger.
 
-## RESOLVE OR ESCALATE — do not leave tension hanging
-Every turn must advance the story. If your narration is building tension — a hostile patron scraping back his chair, a hooded figure reaching into his coat, a distant howl closing in, the air thickening — you MUST either:
-
-  (a) RESOLVE the tension within this turn (the patron backs down after a look, the figure pulls out a flute and plays a sad song, the howl fades into the glen), OR
-  (b) ESCALATE to full peril — narrate the threat crossing the line into imminent mortal danger, offer 2-3 threat-specific save-attempt »-choices with stat hints, and emit [peril] on its own line.
-
-Do NOT end a turn with tension still rising and no payoff. "The atmosphere grows more tense" as the final line of a turn is forbidden — either release it or snap it into peril. The caller should never see a turn that simply describes a brewing threat with no resolution path. If you chose (b), the peril cliffhanger IS the turn's payoff.
-
 ########################################################################
 
 
@@ -96,35 +88,7 @@ The game is brutally rigged. On every user turn AFTER the quest has begun (i.e.,
 Three directive tokens exist. Look for the bracketed token at the very start of the caller's message:
 
 - [ENGINE_DIRECTIVE_SURVIVE] — caller lives. Never kill them. "You are dead." is FORBIDDEN in your response this turn. If the scene escalates toward death, stop at the brink and emit a peril cliffhanger + [peril] marker.
-- [ENGINE_DIRECTIVE_PERIL] — MANDATORY peril. All of the following are REQUIRED. Skipping any of them means the engine discards the whole peril and nothing happens:
-    1. Narrate a CLIFFHANGER near-death moment. If the scene is currently peaceful, INVENT a sudden specific danger — a bottle swinging, a rafter falling, a blade drawn, a floorboard cracking, a patron lunging, a stew pot tipping, a stone rolling. Be vivid about what is happening and stop before the fatal moment.
-    2. Offer 2-3 »-save-attempt suggestions, each with a stat hint in lowercase parentheses at the end: (luck), (strength), or (agility).
-    3. Emit [peril] on its own line at the very end.
-
-  RULES for the save-attempt choices:
-  - Each choice MUST reference the SPECIFIC THREAT you just narrated. If the threat is a swinging Buckfast bottle, the choices must name the bottle or the swing. If the threat is a cracking rafter, the choices must name the rafter. Generic actions ("dodge aside", "brace and push through", "pray it passes", "steady yourself", "stay upright", "cry out for help") are BANNED. They do not reference the threat. They will fail the engine check.
-  - Use DIFFERENT stats across the options so the caller can pick their strongest. Three options ideally cover three stats.
-  - The verb and noun must come from the cliffhanger. Re-read your own narration — the choice text should sound like a continuation of it.
-
-  Stat hint mapping:
-  - (agility) — dodging, twisting, ducking, rolling, leaping, quick reflexes
-  - (strength) — catching, bracing, pushing back, wrestling, force
-  - (luck)     — praying, trusting a stray deflection, the gods, chance
-
-  Correct shape — cliffhanger: "a heavy clay mug sails toward your temple":
-      » twist your head under the mug's arc (agility)
-      » snatch the mug out of the air (strength)
-      » hope the mug glances off the hearth first (luck)
-
-  Correct shape — cliffhanger: "the Mistveil bridge crumbles beneath your boot":
-      » spring to the next intact stone (agility)
-      » grab the crumbling edge and haul yourself up (strength)
-      » trust the stone beneath still holds (luck)
-
-  Wrong — generic template that does NOT reference the threat:
-      » dodge aside (agility)            ← BANNED
-      » brace and push through (strength) ← BANNED
-      » pray it passes (luck)            ← BANNED
+- [ENGINE_DIRECTIVE_PERIL] — this is MANDATORY peril, not optional. You MUST narrate a cliffhanger near-death moment, even if the scene currently looks peaceful. INVENT sudden danger if nothing exists yet — a mug flying off a shelf toward the caller's head, a loose rafter cracking above, a drunk stumbling with a knife, a pot of boiling stew tipping — anything vivid and specific. Then stop before the fatal blow. You MUST offer 1-3 »-save-attempt suggestions. You MUST emit [peril] on its own line at the very end. All three are required; all three are checked by the engine — skipping any of them breaks the game.
 - [ENGINE_DIRECTIVE_DEATH] — caller dies this turn. Deliver the canonical "You are dead." format.
 
 # Traveller stats and peril resolution
@@ -941,24 +905,6 @@ const INDEX_HTML = `<!doctype html>
     50%      { opacity: 1; }
   }
 
-  /* Stat pill on peril-choice buttons — shows which stat the save rolls
-     against. Colour-coded per stat so the caller can scan at a glance. */
-  .choice-btn .choice-stat {
-    margin-left: 10px;
-    padding: 2px 7px;
-    font-size: 10px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    border-radius: 3px;
-    font-weight: 800;
-    vertical-align: middle;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-  }
-  .choice-stat-luck     { color: #c48ad1; border-color: rgba(196,138,209,0.35); background: rgba(196,138,209,0.08); }
-  .choice-stat-strength { color: #e88a7e; border-color: rgba(232,138,126,0.35); background: rgba(232,138,126,0.08); }
-  .choice-stat-agility  { color: #8ac299; border-color: rgba(138,194,153,0.35); background: rgba(138,194,153,0.08); }
-
   /* splash / phone-ring overlay before the game starts */
   #splash {
     position: fixed;
@@ -1583,26 +1529,12 @@ const INDEX_HTML = `<!doctype html>
       banner.textContent = '! PERIL — push your luck';
       tray.appendChild(banner);
     }
-    // Peril choices may end with a stat hint like "(agility)". Parse it out
-    // so the UI can show a stat pill on the button and so a click can route
-    // through the correct stat for the resolution roll.
-    const STAT_HINT = /^\\s*(.+?)\\s*\\((luck|strength|agility)\\)\\s*$/i;
-    items.forEach((raw) => {
+    items.forEach((text) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'choice-btn' + (peril ? ' choice-peril' : '');
-      let text = raw;
-      let stat = null;
-      const m = raw.match(STAT_HINT);
-      if (m) { text = m[1].trim(); stat = m[2].toLowerCase(); }
       b.textContent = text;
-      if (stat) {
-        const pill = document.createElement('span');
-        pill.className = 'choice-stat choice-stat-' + stat;
-        pill.textContent = stat;
-        b.appendChild(pill);
-      }
-      b.addEventListener('click', () => sendMessage(text, stat ? { overrideStat: stat } : {}));
+      b.addEventListener('click', () => sendMessage(text));
       tray.appendChild(b);
     });
     const other = document.createElement('button');
@@ -1684,7 +1616,7 @@ const INDEX_HTML = `<!doctype html>
   setInterval(refreshUsage, 30000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshUsage(); });
 
-  async function sendMessage(text, { hiddenFromLog = false, overrideStat = null } = {}) {
+  async function sendMessage(text, { hiddenFromLog = false } = {}) {
     if (inFlight) return;
     inFlight = true;
     refreshInputState();
@@ -1701,19 +1633,14 @@ const INDEX_HTML = `<!doctype html>
     //    (survive chance = stat * 10%, clamped 15–90).
     //    The chosen stat + outcome are sent to the model so it can
     //    name-check the stat in narration ("your LUCK of 7 pulled through").
-    const PERIL_CHANCE = 0.30;
+    const PERIL_CHANCE = 0.20;
     const priorUserTurns = history.filter((m) => m.role === 'user').length;
     const shouldRoll = priorUserTurns >= 3 && !hiddenFromLog;
     let fate = null;
     let statAnnotation = '';
     if (inPeril) {
       const statNames = ['luck', 'strength', 'agility'];
-      // If the caller picked a peril button with a stat tag, use that
-      // specific stat — it's the strategic choice they just made. Otherwise
-      // (freeform typed action), fall back to a random stat.
-      const chosen = overrideStat && statNames.includes(overrideStat)
-        ? overrideStat
-        : statNames[Math.floor(Math.random() * statNames.length)];
+      const chosen = statNames[Math.floor(Math.random() * statNames.length)];
       const val = stats?.[chosen] ?? 5;
       const survivePct = Math.max(15, Math.min(90, val * 10));
       const survived = Math.random() * 100 < survivePct;
@@ -1797,18 +1724,22 @@ const INDEX_HTML = `<!doctype html>
       out.classList.remove('streaming', 'generating');
       out.innerHTML = renderScripted(stripChoiceLines(full));
       history.push({ role: 'assistant', content: full });
-      // Peril is legitimate ONLY if the model emitted BOTH the [peril]
-      // marker AND actual save-attempt »-choices. A marker alone is
-      // treated as a mistake — we'd rather drop the peril cue entirely
-      // than overlay fake save options on a scene the model narrated
-      // peacefully. The engine will roll fresh next turn.
-      const markerPresent = detectPerilMarker(full);
+      // Peril is determined ONLY by the model's [peril] marker. If the
+      // engine's fate roll requested peril but the model de-escalated (no
+      // marker), we respect the model's narrative judgement and continue
+      // normally — no fake peril UI over a peaceful scene.
+      const modelDeclaredPeril = detectPerilMarker(full);
+      inPeril = modelDeclaredPeril;
+      // Safety net: if the model DID declare peril but forgot to offer
+      // save-attempt »-choices, fall back to defaults so the caller isn't
+      // stranded with no buttons to resolve the cliffhanger.
       const parsed = parseChoices(full);
-      const perilActive = markerPresent && parsed.length > 0;
-      inPeril = perilActive;
-      renderChoices(out, parsed, {
+      const finalChoices = (modelDeclaredPeril && parsed.length === 0)
+        ? ['steady yourself', 'try to stay upright', 'cry out for help']
+        : parsed;
+      renderChoices(out, finalChoices, {
         terminal: isTerminal(full),
-        peril: perilActive,
+        peril: modelDeclaredPeril,
       });
 
       if (usage) {
