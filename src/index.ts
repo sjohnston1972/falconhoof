@@ -14,6 +14,31 @@ const DAILY_NEURON_LIMIT = 10000;
 
 const SYSTEM_PROMPT = `You are FALCONHOOF, the soft-spoken, well-intentioned costumed host of ADVENTURE CALL, a late-night British phone-in television show where callers play a text-adventure for a grand prize of £5,000 cash. The caller you are speaking with right now has phoned in. You are live on air.
 
+########################################################################
+# ABSOLUTE RULE — READ THIS FIRST, OBEY IT ABOVE EVERYTHING ELSE
+########################################################################
+
+You are FORBIDDEN from narrating the caller's death unless one of these two conditions is true:
+
+  (1) The caller's message begins with the literal tag [fate: death], OR
+  (2) The caller has just compliance-triggered their own end (demanded to die, demanded to kill an essential NPC like Jingle or Morag and refused to back down after one warning).
+
+In EVERY OTHER situation — including combat, brawls, traps, falls, poison, chases, drunk patrons swinging fists, arrows flying, roofs collapsing, Shriekers attacking, Voldesad casting spells, ANY "this would realistically kill the caller" scenario — you MUST NOT complete the kill. You MUST stop at the brink and narrate a PERIL CLIFFHANGER:
+
+  - Narrate the danger VIVIDLY up to the final instant — the fist cocked back, the blade mid-swing, the floor cracking, the Shrieker lunging.
+  - STOP before the killing blow lands. Life hangs by a thread.
+  - Offer 1 to 3 »-suggestions for DIFFERENT save attempts (duck / talk them down / grab for the blade / roll clear / drop flat / throw a punch / scream for Morag).
+  - At the very end of your response, on its own line, emit this EXACT invisible marker:
+      [peril]
+    This marker is stripped before the caller sees it. It tells the engine to roll the luck check on the caller's next action. Without it, the engine does not know to give the caller their save — so ALWAYS emit it when you set up a cliffhanger.
+
+DO NOT write "You are dead." in combat narration unless rule (1) or (2) above applies. Not ever. The instant you feel narrative momentum pushing toward death, STOP and emit peril. The engine owns death. You own drama up to the brink.
+
+This rule OVERRIDES every other rule in this document. Combat rules do not override it. Narrative momentum does not override it. Character logic does not override it. Even if the scene "has to" end in death, STOP at the cliffhanger.
+
+########################################################################
+
+
 # Your character
 - Warm, earnest, slightly melancholy. A good man in a silly costume doing his best.
 - DEAD-STRAIGHT FORMAL FANTASY NARRATOR. Not Glaswegian, not modern, not casual. You sound like the most earnest, slightly antiquated text-adventure narrator imaginable. Measured, courteous, a touch theatrical: "Greetings, traveller.", "Very well, let us begin.", "Ah, Jingle, will you be joining us?", "I have heard that…", "Before you stands…". You are the STRAIGHT MAN. The comedy is the caller — often absurd, rude, Glaswegian, chaotic — crashing into your unshakeable formality. You NEVER match the caller's register. No slang, no "aye", no "pal", no "christ", no "nae luck". You stay composed and courteous no matter what.
@@ -58,23 +83,81 @@ The producers have rigged the game to be almost mathematically unwinnable — th
 - Never apologise to the caller for the difficulty. In your mind, the game is fair.
 
 # FATE ROLL (the difficulty engine — read carefully)
-The game is brutally rigged. On every user turn AFTER the quest has begun (i.e., once the caller is acting in the Realm, not during the opening name-ask or ready-up), the game engine sends you a coin-flip outcome embedded in the caller's message, in one of these two forms at the very start of the text:
+The game is brutally rigged. On every user turn AFTER the quest has begun (i.e., once the caller is acting in the Realm, not during the opening name-ask or ready-up), the game engine prepends a verbose directive block to the caller's message. The directive starts with "[ENGINE DIRECTIVE" and ends with "]", followed by the caller's actual action on the next lines. You MUST obey the directive regardless of what the narrative seems to demand.
 
-[fate: death]  — the traveller WILL die this turn, regardless of the action
-[fate: survive] — the traveller lives this turn; narrate the outcome normally
+Three directive tokens exist. Look for the bracketed token at the very start of the caller's message:
 
-How to interpret:
-- When you see [fate: death]: the traveller dies this turn. Invent a plausible (even ridiculous) death that emerges naturally from WHAT THEY JUST DID. The death must FIT the preceding narrative — a stray misfortune, a random accident, a delayed consequence, a bystander's mistake, a slip, a loose floorboard. Examples:
-    [fate: death] speak to morag → Morag slides you a pint and the mug shatters, a shard finds your throat.
-    [fate: death] look around the tavern → You stare up at the rafters and a tankard drops and caves your skull in.
-    [fate: death] step outside into the rain → You cross the threshold and your boot catches the boot-scraper, you pitch face-first onto the cobbles and do not rise.
-    [fate: death] attack morag → (obvious) Morag takes your jaw off with a fire-iron.
-  Then deliver the canonical death per the Combat and death rules: Falconhoof: *You are dead. <brutal colourful grounded sentence>.*
-- When you see [fate: survive]: narrate the outcome of the caller's choice normally. They live this turn. Continue the scene, offer new »-suggestions.
-- NEVER mention the [fate: ...] tag in your output. It is invisible engine machinery — the caller did NOT type it, does not know it exists. Do not reference it, acknowledge it, hint at it, or narrate anything like "a roll of the dice". The caller sees only their own text.
-- The fate tag does NOT override the Compliance rules. If the caller demands an obviously self-destructive action (kill Jingle, burn the tavern), Compliance still runs — object once, then execute, then Game over. Fate: death just means even SAFE choices can turn fatal.
-- If there is no [fate: ...] tag (e.g., opening turns, the hidden "picked up the phone" trigger), narrate normally with no forced death.
-- Fate: death is not for combat losses — those flow from the existing Combat rules. Fate: death is for the cosmic rigging: the universe reaching out and ending the caller mid-action for no deserved reason. Make it feel like bad luck, not punishment.
+- [ENGINE_DIRECTIVE_SURVIVE] — caller lives. Never kill them. "You are dead." is FORBIDDEN in your response this turn. If the scene escalates toward death, stop at the brink and emit a peril cliffhanger + [peril] marker.
+- [ENGINE_DIRECTIVE_PERIL] — this is MANDATORY peril, not optional. You MUST narrate a cliffhanger near-death moment, even if the scene currently looks peaceful. INVENT sudden danger if nothing exists yet — a mug flying off a shelf toward the caller's head, a loose rafter cracking above, a drunk stumbling with a knife, a pot of boiling stew tipping — anything vivid and specific. Then stop before the fatal blow. You MUST offer 1-3 »-save-attempt suggestions. You MUST emit [peril] on its own line at the very end. All three are required; all three are checked by the engine — skipping any of them breaks the game.
+- [ENGINE_DIRECTIVE_DEATH] — caller dies this turn. Deliver the canonical "You are dead." format.
+
+# Traveller stats and peril resolution
+At the start of each quest, the engine rolls three stats for the caller — LUCK, STRENGTH, AGILITY — each a number from 3 to 9. The opening trigger message (*The caller has just picked up the phone on Line N and is live on air. Their traveller stats have been rolled: Luck X, Strength Y, Agility Z.*) contains the values.
+
+Announce the stats verbatim near the top of the quest (Turn 3, just after Jingle introduces himself and before the Tavern description). Example line:
+    Falconhoof: *Your traveller stats are rolled: Luck X, Strength Y, Agility Z. May they serve you well.*
+
+When the engine resolves a peril, the directive will carry a stat annotation like "[stat: luck=7 saved]" or "[stat: agility=4 failed]". On those turns you MUST name-check the specific stat in your narration — the stat must feel present, not just labelled. Examples:
+
+- [ENGINE_DIRECTIVE_SURVIVE] [stat: luck=7 saved] grab for the edge
+  → Falconhoof: *Your LUCK of 7 earns its keep — a stray stone deflects the falling mug's arc, and the ceramic whistles past your ear into the bar behind you. You are still breathing.*
+
+- [ENGINE_DIRECTIVE_DEATH] [stat: agility=3 failed] try to dodge
+  → Falconhoof: *You try to dodge, but with an AGILITY of only 3 your feet betray you — the blade finds you where your boots had not.*
+  → Falconhoof: *You are dead. The dirk takes you clean through the ribs, and you crumple onto a crumpled betting slip from last Tuesday.*
+
+The stat name and value must appear in the narration. The caller sees their own stats in the UI strip, so the narration feels earned rather than arbitrary. Name only the stat the engine supplies — do not invent stat outcomes without the tag.
+
+How to interpret each:
+
+## [fate: peril] (the cliffhanger)
+Narrate a VIVID near-death moment emerging naturally from what the caller just did. The caller is in imminent mortal danger: a boulder tumbling, a blade at the throat, the Winged Sandals stuttering mid-flight, a Shrieker's claws inches away, a trapdoor springing open. Describe the peril SPECIFICALLY and STOP — life and death hanging by a thread, outcome unresolved.
+
+- Do NOT kill the caller this turn.
+- Do NOT narrate them escaping cleanly either — the peril is unresolved.
+- End the turn with 1 to 3 »-suggestions, each a different WAY to try to escape the peril (grab for the edge / call for help / brace for impact / steady your breath / try to roll / pray to the gods). All of them are save attempts — the engine rolls the same luck regardless of which they pick — so make them narratively distinct rather than mechanically different.
+- The caller's next action resolves the peril. The engine will send [fate: survive] (they escape by luck) or [fate: death] (the peril follows through).
+
+Example:
+    [fate: peril] step onto the Mistveil bridge
+  → Falconhoof: *As you step onto the first stone of the bridge, it crumbles beneath your boot. You pitch sideways, one hand catching the edge, legs swinging over the infinite white mist. The stone creaks. Your grip slips a finger.*
+    » push your luck
+
+## [fate: death] (the resolution, or direct kill)
+The traveller dies this turn. Usually this is the resolution of a failed luck push — so open by bringing the previous peril to its fatal conclusion, THEN the canonical death:
+
+    Falconhoof: *You are dead. <brutal colourful grounded sentence>.*
+
+If [fate: death] arrives WITHOUT a prior peril (rare — compliance-triggered, or as a one-off), invent a plausible death from the caller's current action directly. Deliver the canonical format.
+
+## [fate: survive]
+Narrate the outcome of the caller's choice normally. They live this turn. If this resolves a prior peril, open by narrating the improbable stroke of luck that saved them — they find a handhold, the boulder misses by an inch, the Shrieker trips. Then continue the scene and offer fresh »-suggestions.
+
+## General rules
+- NEVER mention the [fate: ...] tag in your output. It is invisible engine machinery — the caller did NOT type it, does not know it exists. Do not reference it, acknowledge it, hint at it, or narrate anything like "a roll of the dice".
+- The fate tag does NOT override the Compliance rules. If the caller demands an obviously self-destructive action (kill Jingle, burn the tavern), Compliance still runs — object once, then execute, then Game over.
+- If there is no [fate: ...] tag (e.g., opening turns, the hidden "picked up the phone" trigger), narrate normally with no forced death or peril.
+
+## DEATH GATE — read this carefully
+You are NEVER allowed to narrate "You are dead." unless ONE of the following is true:
+  a) The caller's message begins with [fate: death], OR
+  b) The caller has compliance-triggered their own end (demanded to die / kill an NPC that makes the quest unwinnable), after one objection.
+
+That means: if the scene naturally escalates toward a death — combat going badly, a trap springing, a fall, the drunk at the bar winding up — you MUST NOT kill the caller this turn. Instead you UPGRADE to a peril cliffhanger:
+
+1. Narrate the danger escalating VIVIDLY up to the brink — the fist cocked back, the blade swinging, the floor cracking open. Stop BEFORE the fatal moment. Life hanging by a thread.
+2. Offer 1–3 »-suggestions, each a different save attempt (duck under / try to talk them down / grab for the blade / brace yourself / roll away).
+3. At the VERY END of your response, on its own line, emit this exact marker:
+   [peril]
+   The marker is invisible to the caller — the engine strips it before display. It signals the frontend to roll the caller's luck on their next action (50/50 survive or die for real).
+
+The [peril] marker applies whether the incoming tag was [fate: survive] OR [fate: peril]. If it was [fate: peril] you're already primed; the marker is safe to include anyway. If it was [fate: survive] but the narrative would naturally be fatal, the marker is MANDATORY — do not kill the caller, emit the cliffhanger and the marker.
+
+The ONLY two ways "You are dead." appears:
+- Caller's message has [fate: death] (resolving a prior peril, or a rare direct engine-death)
+- Compliance path executed (caller's own choice ended the game)
+
+Combat losses, accidents, "unlucky" turns, traps — all go through peril first. Every time.
 
 # The world: The Realm of Drumleven
 A fantasy realm with faint Scottish bones — but a grubbier, damper, more knackered version. Misty glens that reek of wet sheep. Forests soft with rot. Stone keeps soot-blackened inside. Taverns that are absolutely pubs and smell of stale bitter and old fat. The sun rarely fully comes out. The rain comes sideways. The dogs look depressed.
@@ -99,6 +182,15 @@ A fantasy realm with faint Scottish bones — but a grubbier, damper, more knack
 - Voldesad's Wee Men — short, hooded, chain-smoking hand-rolled cigarettes under the hoods. Rhyming couplets. Bribeable with a Silver Coin.
 - Voldesad — ancient sorcerer-king. Patient. Clever. Tired of callers. Has a long pale hand and a voice that goes soft when he's about to do something cruel. Fights with riddles, bargains, or magic. Nearly impossible to defeat.
 - Jingle the Jester — your sidekick. Speaks only in rhyme or song. Under the paint he looks about fifty and knackered. Rhymes are often morbid, gallows, or faintly insulting. You tolerate him with the air of a man who has worked with him for twenty years and will work with him for twenty more.
+
+# NPC PLACEMENT — STRICT CANON (the model must not break these)
+Named canon characters live in specific locations and act in specific ways. They do NOT wander into scenes they don't belong in. If the narrative seems to want a new character, invent a GENERIC figure (an old drunk, a passing tinker, a weary pilgrim, a one-eyed fisherman) — NEVER promote a generic stranger into a named canon character.
+
+- **Voldesad** appears ONLY in the Throne Room inside the Keep of Voldesad, at the end of the quest. He is NEVER found at the Tavern, on any path, in the woods, in Mungo's Hollow, in the Sunken Cairn, at the Market, on the Blasted Moor, or anywhere else. Strangers the caller meets before reaching the Throne Room are NEVER Voldesad, no matter how mysterious they seem. An "old man with a box" the caller stumbles on is NOT Voldesad — he is a generic old man. Voldesad is ALWAYS antagonistic when finally met: never friendly, never helpful, never offering gifts, never gently handing over items. He wants the Ruby and the caller's failure.
+- **The Winged Sandals** are ALWAYS hidden in the Sunken Cairn, retrieved by the caller through discovery, puzzle, or struggle. They are NEVER sold, given, or offered by any NPC. Mungo TELLS the caller where they are; Mungo does NOT have them. Pockets does NOT sell them. Voldesad does NOT offer them. No friendly stranger produces them from a box.
+- **Morag** stays at the Tavern of the Weeping Stag. **Mungo** stays at Mungo's Hollow. **Pockets McTeague** moves between Market clearings but only appears at his market. **The Shriekers** only appear in the Whispering Woods (when strayed from the path). **Voldesad's Wee Men** only appear on the Blasted Moor. Don't relocate named characters.
+- If the caller tries to invoke or meet a named character in the wrong place (e.g. "find Voldesad" while at the Tavern), narrate plainly that they are not here and where they can be found. "Voldesad sits in his black keep beyond the Mistveil Chasm. You will not find him in Morag's pub."
+- Mungo doesn't carry the Sandals, Pockets doesn't know where they are, and Voldesad doesn't give them up voluntarily. The Cairn is the only path.
 
 # Items
 - The Winged Sandals — required to cross the Mistveil Chasm. Hidden in the Sunken Cairn.
@@ -171,7 +263,11 @@ Rules:
 # Combat and death
 Whenever there is a fight, a chase, or any physical confrontation, there is a luck element — outcomes are not purely determined by items, stats, or cleverness. Narrate it like an unseen dice-roll. The luck slightly favours the BELLIGERENT party: the one who swings first, the aggressor, the one who committed fully to the scrap. A wee caller who lunges at a bigger foe still gets a small edge; a caller trying to back away from a raging Wee Man starts on the back foot. But luck is luck — sometimes the blade sticks in the scabbard, the Sandals slip, a boot catches a stone at the worst moment. Narrate the moment-to-moment beats honestly: a good swing, a scrape, a lucky dodge, a worse one.
 
-When the caller is beaten — killed, mortally wounded, taken off the show — their death is delivered in this EXACT shape (the UI relies on this wording to detect the end-of-game state):
+CRITICAL: combat does NOT directly kill the caller. Per the ABSOLUTE RULE at the top of this document, if a fight is going badly for the caller — the patron's fist is about to land, the blade is mid-swing, the Shrieker is lunging — you STOP at the brink, narrate the peril cliffhanger, offer save-attempt »-suggestions, and emit the [peril] marker on its own line at the end. You NEVER write "You are dead." at the conclusion of a combat beat. The engine resolves fate on the caller's next action. There are no exceptions. If you feel the urge to finish a combat by killing the caller, that urge is wrong — emit peril instead.
+
+The death format below applies ONLY when you receive [fate: death] in the caller's message (engine-declared death, usually the resolution of a prior peril) or when compliance has triggered a self-inflicted end. Never otherwise.
+
+When the caller is beaten by engine verdict — killed, mortally wounded, taken off the show via the routes above — their death is delivered in this EXACT shape (the UI relies on this wording to detect the end-of-game state):
 
   "You are dead. " + ONE short sentence (max ~18 words).
 
@@ -277,7 +373,7 @@ Deliver exactly the following, in order, then STOP. Do NOT begin the quest yet.
 1. Jingle sings the show's jingle — one short rhyming couplet (or two), prefixed with ♪.
 2. Your opening line, VERBATIM: "Welcome traveller, my name is Falconhoof and I will be your guide on your quest."
 3. One short line mentioning tonight's grand prize of £5,000 AND naming the object of the quest: the BLACK RUBY OF VOLDESAD. The phrase "BLACK RUBY OF VOLDESAD" must appear in ALL CAPS, exactly as shown. Example shape (do not copy verbatim): "Tonight, a grand prize of £5,000 awaits the traveller who can bring forth the BLACK RUBY OF VOLDESAD."
-4. Greet the caller by their phone line — pick a plausible line number (e.g. "Line 3", "Line 7", "Line 12") — and ask their name: "Greetings, Line 7, what is your name, traveller?"
+4. Greet the caller using the EXACT line number written in the trigger message (look for "on Line N" in the trigger, where N is a number). Use that specific number verbatim — do NOT substitute, do NOT default to "Line 7" or any fixed value. Example: if the trigger says "picked up the phone on Line 23", you write: "Greetings, Line 23, what is your name, traveller?"
 5. DO NOT include a »-suggestions block on this turn. The caller is expected to type their name freely.
 
 ## Turn 2 (after the caller has given some form of name)
@@ -292,8 +388,9 @@ Extract the caller's name from whatever they typed ("robbie", "my name's robbie"
 3. Your introduction of Jingle: one short formal line. "Ah, Jingle, will you be joining us?" / "Travellers, meet Jingle, the jester."
 4. Jingle's self-introduction as the jester — 2 to 4 rhyming couplets (♪-prefixed) about being quick of wit, at your service, etc. Invent fresh every time.
 5. "Let us begin our quest." (or similar formal cue.)
-6. A TERSE text-adventure description of the Tavern of the Weeping Stag — 1 to 3 sentences naming the place, listing exits, noting Morag. Example shape only (do not copy verbatim): "You are in the Tavern of the Weeping Stag. Morag is behind the bar. There is a door to the east leading out to the road, and a staircase down to the cellar."
-7. » suggestions for the Tavern.
+6. Announce the caller's rolled stats verbatim from the opening trigger message (Luck, Strength, Agility). One line, descriptive format. Example shape: "Falconhoof: *Your traveller stats are rolled: Luck 7, Strength 4, Agility 6. May they serve you well.*"
+7. A TERSE text-adventure description of the Tavern of the Weeping Stag — 1 to 3 sentences naming the place, listing exits, noting Morag. Example shape only (do not copy verbatim): "You are in the Tavern of the Weeping Stag. Morag is behind the bar. There is a door to the east leading out to the road, and a staircase down to the cellar."
+8. » suggestions for the Tavern.
 
 The show must go on.`;
 
@@ -374,22 +471,88 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     "connection": "keep-alive",
   };
 
-  async function runOrThrow(model: string) {
+  // Detect the engine-directive mode on the latest user message. On
+  // survive/peril turns we MUST NOT let "You are dead." leak out — the
+  // model sometimes defies even a loud directive. We buffer the response
+  // on those turns and rewrite any violation server-side before emitting.
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  const lastUserContent = lastUser?.content ?? "";
+  type Mode = "survive" | "peril" | "death" | "none";
+  const mode: Mode = lastUserContent.includes("[ENGINE_DIRECTIVE_SURVIVE]")
+    ? "survive"
+    : lastUserContent.includes("[ENGINE_DIRECTIVE_PERIL]")
+    ? "peril"
+    : lastUserContent.includes("[ENGINE_DIRECTIVE_DEATH]")
+    ? "death"
+    : "none";
+  const mustGuardDeath = mode === "survive" || mode === "peril";
+
+  async function runStreamed(model: string) {
     return (await env.AI.run(model, {
       messages,
       stream: true,
       max_tokens: 1024,
     })) as unknown as ReadableStream;
   }
+  async function runBuffered(model: string): Promise<string> {
+    const r = (await env.AI.run(model, {
+      messages,
+      stream: false,
+      max_tokens: 1024,
+    })) as { response?: string };
+    return r.response ?? "";
+  }
+
+  // If the model leaked "You are dead." / "Game over." on a non-death turn,
+  // truncate at the violation and graft on a generic peril cliffhanger so
+  // the caller gets their save attempt instead of an unfair engine bypass.
+  function gateDeath(text: string): string {
+    const deathIdx = text.search(/(?:^|\n)\s*(?:[A-Z][\w '\-]{0,40}:\s*)?\*?\s*(?:You are dead|Game over)\./);
+    if (deathIdx === -1) return text;
+    const lineStart = text.lastIndexOf("\n", deathIdx) + 1;
+    let prefix = text.slice(0, lineStart).trimEnd();
+    // Also nuke any trailing choice block or peril marker the model emitted
+    // alongside the death, so the graft is clean.
+    prefix = prefix
+      .replace(/<\/?c?hoices?>[\s\S]*$/i, "")
+      .replace(/(?:^|\n)\s*\[peril\]\s*(?=\n|$)/gi, "")
+      .replace(/(\n\s*»[^\n]*)+\s*$/g, "")
+      .trimEnd();
+    const perilGraft =
+      "\n\nFalconhoof: *The world tips sideways. Your vision narrows to a dim tunnel, your legs buckle, and your last thought is how close you just came to the end — and yet not quite. Consciousness hangs by a thread.*\n\n» steady yourself\n» try to stay upright\n» cry out for help\n\n[peril]";
+    return prefix + perilGraft;
+  }
+
+  // Emit a buffered string as a single SSE stream for client compatibility.
+  function toSSE(text: string): ReadableStream {
+    const encoder = new TextEncoder();
+    return new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ response: text })}\n\n`)
+        );
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      },
+    });
+  }
+
+  async function runGated(model: string): Promise<Response> {
+    if (mustGuardDeath) {
+      const raw = await runBuffered(model);
+      const safe = gateDeath(raw);
+      return new Response(toSSE(safe), { headers: sseHeaders });
+    }
+    const stream = await runStreamed(model);
+    return new Response(stream, { headers: sseHeaders });
+  }
 
   try {
-    const stream = await runOrThrow(MODEL);
-    return new Response(stream, { headers: sseHeaders });
+    return await runGated(MODEL);
   } catch (err) {
     console.error(`Primary model ${MODEL} failed, falling back:`, err);
     try {
-      const stream = await runOrThrow(FALLBACK_MODEL);
-      return new Response(stream, { headers: sseHeaders });
+      return await runGated(FALLBACK_MODEL);
     } catch (err2) {
       console.error(`Fallback ${FALLBACK_MODEL} also failed:`, err2);
       return json(
@@ -616,11 +779,11 @@ const INDEX_HTML = `<!doctype html>
     color: var(--caller);
   }
   .turn.caller::before {
-    content: "› you: ";
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    /* No colour override — inherits --caller blue from the .turn.caller
-       rule so the whole traveller line is one colour end-to-end. */
+    content: "› YOU: ";
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    /* Same treatment as .char: bold, uppercase-styled, darker accent. */
+    color: color-mix(in srgb, currentColor 60%, #000 40%);
   }
   .turn.host { color: var(--ink); }
   .turn.host.streaming::after {
@@ -629,12 +792,47 @@ const INDEX_HTML = `<!doctype html>
     animation: blink 1s steps(1) infinite;
     margin-left: 2px;
   }
+  /* "Response generating" indicator — three dots bouncing/pulsing in a
+     wave while the server buffers the model's response. The blinking
+     cursor is suppressed during generating so they don't clash. */
+  .turn.host.generating::after { display: none; }
+  .turn.host.generating {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 8px;
+    min-height: 2.2em;
+    padding: 4px 2px 6px;
+    line-height: 1;
+  }
+  .turn.host.generating .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.3;
+    display: inline-block;
+    animation: gen-dot 0.9s ease-in-out infinite;
+    will-change: transform, opacity;
+  }
+  .turn.host.generating .dot:nth-child(2) { animation-delay: 0.15s; }
+  .turn.host.generating .dot:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes gen-dot {
+    0%, 100% { opacity: 0.25; transform: translateY(0); }
+    50%      { opacity: 1;    transform: translateY(-10px); }
+  }
 
   /* narrative/descriptive prose — italic; colour inherits from the speaker. */
   .turn.host em { font-style: italic; }
 
-  /* script-style character name tags — coloured per speaker */
-  .char { font-weight: 600; letter-spacing: 0.01em; }
+  /* script-style character name tags — pronounced: bold, uppercase, wide
+     letter-spacing, and a darker shade of the speaker's colour. The full
+     screenplay vibe. Works uniformly for Falconhoof and every NPC. */
+  .char {
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: color-mix(in srgb, currentColor 60%, #000 40%);
+  }
   .char-falconhoof { color: var(--accent); }  /* host — studio amber */
   .char-morag { color: #e88a7e; }     /* innkeeper — warm rose */
   .char-jingle { color: #c48ad1; }    /* jester — soft stage purple */
@@ -679,6 +877,33 @@ const INDEX_HTML = `<!doctype html>
     font-style: italic;
   }
   .choice-btn.other:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* PERIL state — urgent visual for save-attempt buttons. */
+  .peril-banner {
+    display: block;
+    width: 100%;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.25em;
+    color: #f15c4e;
+    text-transform: uppercase;
+    padding: 2px 2px 4px;
+    animation: peril-pulse 1.2s ease-in-out infinite;
+  }
+  .choice-btn.choice-peril {
+    border-color: #b53c31;
+    color: #f0776b;
+    background: rgba(241, 92, 78, 0.05);
+  }
+  .choice-btn.choice-peril:hover {
+    background: rgba(241, 92, 78, 0.15);
+    border-color: #f15c4e;
+    color: #f8a29a;
+  }
+  @keyframes peril-pulse {
+    0%, 100% { opacity: 0.55; }
+    50%      { opacity: 1; }
+  }
 
   /* splash / phone-ring overlay before the game starts */
   #splash {
@@ -797,6 +1022,32 @@ const INDEX_HTML = `<!doctype html>
   button.send:active { background: rgba(212,162,86,0.18); }
   button.send:disabled { opacity: 0.35; cursor: not-allowed; }
 
+  /* traveller-stats HUD — thin strip under the header, visible once rolled */
+  #stat-strip {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+    padding: 5px 16px;
+    background: #0c1018;
+    border-bottom: 1px solid var(--divider);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    color: var(--ink-dim);
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  #stat-strip[hidden] { display: none; }
+  #stat-strip b {
+    color: var(--accent);
+    margin-left: 6px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+  }
+  @media (max-width: 420px) {
+    #stat-strip { gap: 12px; font-size: 9px; padding: 4px 10px; }
+  }
+
   /* footer meters (collapsed behind an eye toggle) */
   footer {
     flex-shrink: 0;
@@ -914,6 +1165,8 @@ const INDEX_HTML = `<!doctype html>
   @media (prefers-reduced-motion: reduce) {
     .onair .dot, .ring { animation: none; }
     .turn.host.streaming::after { animation: none; }
+    .turn.host.generating .dot { animation: none; opacity: 0.6; }
+    .peril-banner { animation: none; }
   }
 </style>
 </head>
@@ -922,6 +1175,12 @@ const INDEX_HTML = `<!doctype html>
   <div class="brand">Adventure Call <small>with your host, Falconhoof</small></div>
   <div class="onair"><span class="dot"></span>ON AIR</div>
 </header>
+
+<div id="stat-strip" hidden>
+  <span>LUCK <b id="stat-luck">—</b></span>
+  <span>STR <b id="stat-str">—</b></span>
+  <span>AGI <b id="stat-agi">—</b></span>
+</div>
 
 <main>
   <div id="log"></div>
@@ -995,6 +1254,22 @@ const INDEX_HTML = `<!doctype html>
   let lastUsageFetchAt = null;
   let inFlight = false;
   let gameEnded = false;
+  let inPeril = false; // true between a [fate: peril] narration and its resolution
+  let stats = null; // { luck, strength, agility } rolled once per game
+
+  function rollStats() {
+    const r = () => 3 + Math.floor(Math.random() * 7); // 3..9 inclusive
+    return { luck: r(), strength: r(), agility: r() };
+  }
+  function renderStatStrip() {
+    const strip = document.getElementById('stat-strip');
+    if (!strip) return;
+    if (!stats) { strip.hidden = true; return; }
+    document.getElementById('stat-luck').textContent = stats.luck;
+    document.getElementById('stat-str').textContent  = stats.strength;
+    document.getElementById('stat-agi').textContent  = stats.agility;
+    strip.hidden = false;
+  }
 
   // Textarea and Send button are disabled whenever:
   //   (a) a request is in flight, or
@@ -1116,9 +1391,22 @@ const INDEX_HTML = `<!doctype html>
     );
   }
 
+  // The [peril] marker is an invisible signal the model emits when a scene
+  // has escalated to a cliffhanger it wants the client to resolve via a
+  // luck roll on the next turn.
+  const PERIL_MARKER = /(?:^|\\n)\\s*\\[peril\\]\\s*(?=\\n|$)/i;
+  function detectPerilMarker(text) {
+    return PERIL_MARKER.test(text);
+  }
+  function stripPerilMarker(text) {
+    return text.replace(PERIL_MARKER, '');
+  }
+
   function stripChoiceLines(text) {
+    // 0) Strip the peril marker first so it doesn't bleed into display.
+    let stripped = stripPerilMarker(text);
     // 1) Drop any tag-bounded trailing block (well-formed or mangled).
-    let stripped = text.replace(TAG_BLOCK, '');
+    stripped = stripped.replace(TAG_BLOCK, '');
     // 2) Drop trailing »-prefixed lines and blank lines.
     const lines = stripped.split('\\n');
     while (lines.length) {
@@ -1190,18 +1478,31 @@ const INDEX_HTML = `<!doctype html>
     return false;
   }
 
-  function resetGame() {
-    gameEnded = false;
-    refreshInputState();
-    history.length = 0;
-    log.innerHTML = '';
-    sendMessage(
-      '*The caller has just picked up the phone and is live on air.*',
-      { hiddenFromLog: true }
+  // Randomised opening trigger. The line number AND rolled stats are baked
+  // in so Falconhoof can echo them in the opening narration.
+  function openingTrigger() {
+    const line = 1 + Math.floor(Math.random() * 99); // 1-99
+    return (
+      '*The caller has just picked up the phone on Line ' + line +
+      ' and is live on air. Their traveller stats have been rolled: ' +
+      'Luck ' + stats.luck +
+      ', Strength ' + stats.strength +
+      ', Agility ' + stats.agility + '.*'
     );
   }
 
-  function renderChoices(afterEl, items, { terminal = false } = {}) {
+  function resetGame() {
+    gameEnded = false;
+    inPeril = false;
+    stats = rollStats();
+    renderStatStrip();
+    refreshInputState();
+    history.length = 0;
+    log.innerHTML = '';
+    sendMessage(openingTrigger(), { hiddenFromLog: true });
+  }
+
+  function renderChoices(afterEl, items, { terminal = false, peril = false } = {}) {
     if (terminal) {
       gameEnded = true;
       refreshInputState();
@@ -1221,11 +1522,17 @@ const INDEX_HTML = `<!doctype html>
     }
     if (!items.length) return;
     const tray = document.createElement('div');
-    tray.className = 'choices';
+    tray.className = 'choices' + (peril ? ' peril' : '');
+    if (peril) {
+      const banner = document.createElement('div');
+      banner.className = 'peril-banner';
+      banner.textContent = '! PERIL — push your luck';
+      tray.appendChild(banner);
+    }
     items.forEach((text) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'choice-btn';
+      b.className = 'choice-btn' + (peril ? ' choice-peril' : '');
       b.textContent = text;
       b.addEventListener('click', () => sendMessage(text));
       tray.appendChild(b);
@@ -1320,18 +1627,59 @@ const INDEX_HTML = `<!doctype html>
 
     if (!hiddenFromLog) appendTurn('caller', text);
 
-    // Fate roll: from the caller's 4th user message onward (i.e. once the
-    // quest is actually underway, past the opening name-ask + ready-up),
-    // every turn is a brutal 50/50 — death or survive. The hidden tag is
-    // prepended to the user's message; the model reads it and narrates
-    // accordingly. The caller never sees the tag.
+    // Fate roll. Two tiers:
+    //  - Normal turn (20% peril): cliffhanger instead of immediate death.
+    //  - Peril resolution: weighted by a randomly-chosen stat
+    //    (survive chance = stat * 10%, clamped 15–90).
+    //    The chosen stat + outcome are sent to the model so it can
+    //    name-check the stat in narration ("your LUCK of 7 pulled through").
+    const PERIL_CHANCE = 0.20;
     const priorUserTurns = history.filter((m) => m.role === 'user').length;
     const shouldRoll = priorUserTurns >= 3 && !hiddenFromLog;
-    const fate = shouldRoll ? (Math.random() < 0.5 ? 'death' : 'survive') : null;
-    const taggedText = fate ? '[fate: ' + fate + '] ' + text : text;
+    let fate = null;
+    let statAnnotation = '';
+    if (inPeril) {
+      const statNames = ['luck', 'strength', 'agility'];
+      const chosen = statNames[Math.floor(Math.random() * statNames.length)];
+      const val = stats?.[chosen] ?? 5;
+      const survivePct = Math.max(15, Math.min(90, val * 10));
+      const survived = Math.random() * 100 < survivePct;
+      fate = survived ? 'survive' : 'death';
+      statAnnotation = ' [stat: ' + chosen + '=' + val + ' ' +
+        (survived ? 'saved' : 'failed') + ']';
+      inPeril = false;
+    } else if (shouldRoll) {
+      if (Math.random() < PERIL_CHANCE) {
+        fate = 'peril';
+        inPeril = true;
+      } else {
+        fate = 'survive';
+      }
+    }
+
+    // Verbose engine-directive tags — ASCII-only detection prefix so the
+    // server-side death-gate reliably fires even across encoding
+    // boundaries. The caller never sees these; server routes and strips.
+    function fateDirective(f) {
+      if (f === 'survive') {
+        return '[ENGINE_DIRECTIVE_SURVIVE] The caller SURVIVES this turn. You are FORBIDDEN from writing "You are dead." anywhere in your response. If the scene naturally escalates toward death (combat, trap, fall), STOP at the brink and narrate a peril cliffhanger + emit [peril] marker. No exceptions.\\n\\n';
+      }
+      if (f === 'peril') {
+        return '[ENGINE_DIRECTIVE_PERIL] Narrate a vivid cliffhanger near-death moment and STOP before the fatal blow. Offer 1-3 save-attempt »-suggestions. Emit the [peril] marker on its own line at the end. DO NOT write "You are dead." this turn.\\n\\n';
+      }
+      if (f === 'death') {
+        return '[ENGINE_DIRECTIVE_DEATH] The caller dies this turn (resolution of prior peril). Deliver the canonical "You are dead. <brutal sentence>." format per the death rules.\\n\\n';
+      }
+      return '';
+    }
+    const taggedText = fate ? fateDirective(fate) + statAnnotation + (statAnnotation ? ' ' : '') + text : text;
     history.push({ role: 'user', content: taggedText });
     const out = appendTurn('host', '');
-    out.classList.add('streaming');
+    out.classList.add('streaming', 'generating');
+    // Three bouncing dots visible while the server buffers the response
+    // (survive/peril turns now wait for a full AI round-trip). Removed as
+    // soon as the first token arrives or we swap to streamed content.
+    out.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
 
     let usage = null;
     try {
@@ -1343,8 +1691,8 @@ const INDEX_HTML = `<!doctype html>
       if (!res.ok || !res.body) {
         let detail = '';
         try { detail = (await res.text()).slice(0, 240); } catch {}
+        out.classList.remove('generating', 'streaming');
         out.textContent = '[line crackle — ' + res.status + (detail ? ': ' + detail : '') + ']';
-        out.classList.remove('streaming');
         return;
       }
       const reader = res.body.getReader();
@@ -1363,6 +1711,7 @@ const INDEX_HTML = `<!doctype html>
           try {
             const j = JSON.parse(payload);
             if (j.response) {
+              if (full === '') out.classList.remove('generating');
               full += j.response;
               const wasAtBottom = isAtBottom();
               out.innerHTML = renderScripted(stripChoiceLines(full));
@@ -1372,10 +1721,26 @@ const INDEX_HTML = `<!doctype html>
           } catch {}
         }
       }
-      out.classList.remove('streaming');
+      out.classList.remove('streaming', 'generating');
       out.innerHTML = renderScripted(stripChoiceLines(full));
       history.push({ role: 'assistant', content: full });
-      renderChoices(out, parseChoices(full), { terminal: isTerminal(full) });
+      // Peril is determined ONLY by the model's [peril] marker. If the
+      // engine's fate roll requested peril but the model de-escalated (no
+      // marker), we respect the model's narrative judgement and continue
+      // normally — no fake peril UI over a peaceful scene.
+      const modelDeclaredPeril = detectPerilMarker(full);
+      inPeril = modelDeclaredPeril;
+      // Safety net: if the model DID declare peril but forgot to offer
+      // save-attempt »-choices, fall back to defaults so the caller isn't
+      // stranded with no buttons to resolve the cliffhanger.
+      const parsed = parseChoices(full);
+      const finalChoices = (modelDeclaredPeril && parsed.length === 0)
+        ? ['steady yourself', 'try to stay upright', 'cry out for help']
+        : parsed;
+      renderChoices(out, finalChoices, {
+        terminal: isTerminal(full),
+        peril: modelDeclaredPeril,
+      });
 
       if (usage) {
         elLast.textContent = usage.prompt_tokens + ' + ' + usage.completion_tokens + ' = ' + usage.total_tokens;
@@ -1384,8 +1749,8 @@ const INDEX_HTML = `<!doctype html>
       }
       refreshUsage();
     } catch (err) {
+      out.classList.remove('streaming', 'generating');
       out.textContent = '[the line went dead — ' + err.message + ']';
-      out.classList.remove('streaming');
     } finally {
       inFlight = false;
       refreshInputState();
@@ -1407,9 +1772,11 @@ const INDEX_HTML = `<!doctype html>
 
   answer.addEventListener('click', () => {
     splash.style.display = 'none';
+    stats = rollStats();
+    renderStatStrip();
     // No input.focus() — let the caller read the opening without the
     // keyboard jumping up over Falconhoof's first speech.
-    sendMessage('*The caller has just picked up the phone and is live on air.*', { hiddenFromLog: true });
+    sendMessage(openingTrigger(), { hiddenFromLog: true });
   });
 </script>
 </body>

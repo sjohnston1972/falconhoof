@@ -128,6 +128,13 @@ A fantasy realm with faint Scottish bones — grubbier, damper, more knackered t
 - **Voldesad's Wee Men** — short, hooded, rhyming in couplets. Bribeable with a Silver Coin.
 - **Voldesad** — ancient sorcerer-king. Patient. Clever. Fights with riddles, bargains, or magic. Nearly impossible to defeat.
 
+### NPC placement (strict canon)
+Named characters stay where they live. They do NOT wander into other scenes.
+- **Voldesad** appears ONLY in the Throne Room at the end of the quest. Strangers met before the Throne Room are never Voldesad — they are generic figures (old drunks, pilgrims, tinkers).
+- **Voldesad** is always antagonistic — never friendly, never helpful, never offering items.
+- **The Winged Sandals** are only in the Sunken Cairn. Never sold, never given, never produced by a kindly stranger. Mungo *tells* you where; the Cairn is the only path.
+- Morag at the Tavern. Mungo at the Hollow. Pockets at his market. Shriekers in the Woods. Wee Men on the Moor. No relocation.
+
 ---
 
 ## Key items
@@ -157,7 +164,19 @@ Caller choices drive order within those constraints.
 ## Game mechanics
 
 ### The fate roll (difficulty engine)
-From the caller's fourth message onward — i.e. once the quest is actually underway, past the opening name-ask and ready-up — **every turn is a brutal 50/50**. The client rolls a coin and prepends a hidden `[fate: death]` or `[fate: survive]` tag to the caller's message. The model interprets the tag and narrates accordingly. The caller never sees the tag.
+From the caller's fourth message onward — once the quest is underway, past the opening name-ask and ready-up — **every turn carries a 20% chance of peril**. Peril is a cliffhanger near-death moment; it does not immediately kill. The client rolls a hidden engine directive and prepends it to the caller's message (`[ENGINE_DIRECTIVE_SURVIVE]` / `[ENGINE_DIRECTIVE_PERIL]` / `[ENGINE_DIRECTIVE_DEATH]`).
+
+On a peril turn the model narrates a vivid cliffhanger and offers 1–3 save-attempt `»` choices (a red PERIL banner appears in the UI). The caller's next action resolves the peril via a **stat-weighted luck roll** (see Traveller stats below).
+
+### Traveller stats
+At the start of each quest the engine rolls three stats for the caller — **Luck**, **Strength**, **Agility** — each a value from 3 to 9. They are displayed in a HUD strip under the header and announced by Falconhoof in the quest's opening moments.
+
+When resolving a peril, the engine picks a random stat and rolls against `stat × 10%` (clamped 15–90%). The outcome — the stat name and pass/fail — is sent to the model via a `[stat: luck=7 saved]` / `[stat: agility=3 failed]` tag. The model is required to name-check the specific stat in the resolution narration ("*Your LUCK of 7 earns its keep…*" / "*With an AGILITY of only 3, your feet betray you…*"). Higher stats meaningfully improve survival; a weak stat in the wrong place is fatal.
+
+Net death rate per action is roughly the peril rate (0.20) × expected stat-roll failure (≈ 0.45 for average stats) = **~9% per action**, skewed by the caller's actual stats.
+
+### Server-side death gate
+"You are dead." and "Game over." are forbidden outside of an `[ENGINE_DIRECTIVE_DEATH]` turn or compliance-triggered self-ending. On survive/peril turns the worker buffers the model response (no streaming) and runs a gate: if the model still slips a death into the text, the server truncates at the violation and grafts on a generic peril cliffhanger before emitting. A "response generating" bounce-dot indicator covers the brief buffered wait. The model interprets the tag and narrates accordingly. The caller never sees the tag.
 
 On a `[fate: death]` roll, the caller dies this turn regardless of what they chose — the model invents a plausible (even ridiculous) death that emerges naturally from what they just did. "Speak to Morag" can kill you if the floorboards give way. "Look around the tavern" can kill you if a tankard falls from the shelf. The rigging is cosmic and patient.
 
