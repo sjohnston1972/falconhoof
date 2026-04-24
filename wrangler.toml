@@ -1,0 +1,13 @@
+name = "falconhoof"
+main = "src/index.ts"
+compatibility_date = "2025-10-01"
+
+routes = [
+  { pattern = "falconhoof.clydeford.net", custom_domain = true }
+]
+
+[ai]
+binding = "AI"
+
+[observability]
+enabled = true
