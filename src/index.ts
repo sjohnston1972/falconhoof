@@ -523,6 +523,8 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     : "none";
   const mustGuardDeath = mode === "survive" || mode === "peril";
 
+  type Usage = { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+
   async function runStreamed(model: string) {
     return (await env.AI.run(model, {
       messages,
@@ -530,13 +532,18 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
       max_tokens: 1024,
     })) as unknown as ReadableStream;
   }
-  async function runBuffered(model: string): Promise<string> {
+  async function runBuffered(model: string): Promise<{ text: string; usage?: Usage }> {
     const r = (await env.AI.run(model, {
       messages,
       stream: false,
       max_tokens: 1024,
-    })) as { response?: string };
-    return r.response ?? "";
+    })) as { response?: string; usage?: Usage };
+    // Workers AI's buffered response includes usage stats alongside
+    // `response`; previously only `response` was read here and the usage
+    // data was silently dropped, which is why the "Last turn" token
+    // readout never updated on survive/peril turns (issue #4) — those
+    // turns always go through this buffered path (see mustGuardDeath).
+    return { text: r.response ?? "", usage: r.usage };
   }
 
   // If the model leaked "You are dead." / "Game over." on a non-death turn,
@@ -560,12 +567,15 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   }
 
   // Emit a buffered string as a single SSE stream for client compatibility.
-  function toSSE(text: string): ReadableStream {
+  // Includes `usage` when the buffered AI call returned it (issue #4), so
+  // the client's "Last turn" token readout updates on every turn, not just
+  // streamed ones.
+  function toSSE(text: string, usage?: Usage): ReadableStream {
     const encoder = new TextEncoder();
     return new ReadableStream({
       start(controller) {
         controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ response: text })}\n\n`)
+          encoder.encode(`data: ${JSON.stringify({ response: text, ...(usage ? { usage } : {}) })}\n\n`)
         );
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
@@ -575,9 +585,9 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
   async function runGated(model: string): Promise<Response> {
     if (mustGuardDeath) {
-      const raw = await runBuffered(model);
+      const { text: raw, usage } = await runBuffered(model);
       const safe = gateDeath(raw);
-      return new Response(toSSE(safe), { headers: sseHeaders });
+      return new Response(toSSE(safe, usage), { headers: sseHeaders });
     }
     const stream = await runStreamed(model);
     return new Response(stream, { headers: sseHeaders });
