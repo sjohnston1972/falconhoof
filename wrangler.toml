@@ -29,3 +29,9 @@ enabled = true
 # checkRateLimit()'s in-memory Map for env.CHAT_RATE_LIMITER.limit({ key })
 # calls. See:
 # https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/
+
+# /diag lockdown (issue #10): /diag requires a shared secret (header
+# x-diag-secret or ?secret= query param) matching env.DIAG_SECRET. Set it
+# with:
+#   npx wrangler secret put DIAG_SECRET
+# If it is never set, /diag returns 404 for everyone (fails closed).

@@ -2,6 +2,11 @@ export interface Env {
   AI: Ai;
   CLOUDFLARE_API_TOKEN: string;
   CLOUDFLARE_ACCOUNT_ID: string;
+  // Shared secret gating /diag (issue #10). Set with:
+  //   npx wrangler secret put DIAG_SECRET
+  // If unset, /diag is unreachable by anyone (fails closed) — see the
+  // router below.
+  DIAG_SECRET?: string;
 }
 
 // 70B gives Falconhoof his real voice and handles "here is the style — invent
@@ -550,6 +555,16 @@ export default {
     }
 
     if (request.method === "GET" && url.pathname === "/diag") {
+      // Shared-secret gate (issue #10) — /diag spends neurons on every hit
+      // and is a debug tool, not a public feature, so it must not be
+      // reachable anonymously. If DIAG_SECRET isn't configured at all,
+      // this fails CLOSED (nobody can reach it, rather than defaulting to
+      // open). Checked first, before it can consume rate-limit budget.
+      const providedSecret = request.headers.get("x-diag-secret") || url.searchParams.get("secret");
+      if (!env.DIAG_SECRET || providedSecret !== env.DIAG_SECRET) {
+        return new Response("Not found", { status: 404 });
+      }
+
       // Rate limit (issue #9) — /diag spends neurons on every hit (it
       // probes both models), so it gets a tighter budget than /chat.
       const rl = checkRateLimit(`diag:${clientIp(request)}`, DIAG_RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS);
@@ -619,6 +634,29 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     return json(
       { error: "payload_too_large", limit: MAX_CHAT_TOTAL_BYTES },
       400
+    );
+  }
+
+  // Daily neuron budget enforcement (issue #10) — checked before the model
+  // call, using the cached usage snapshot (see getCachedNeuronUsage above).
+  // Fails CLOSED: if we can't confirm we're under budget, don't spend.
+  const budget = await getCachedNeuronUsage(env);
+  if (!budget.ok) {
+    return json(
+      {
+        error: "budget_unknown",
+        message: "Falconhoof's line is having technical trouble — please try again in a moment.",
+      },
+      503
+    );
+  }
+  if (budget.used >= DAILY_NEURON_LIMIT) {
+    return json(
+      {
+        error: "budget_exceeded",
+        message: "That's a wrap for today, traveller — the show is off air until the neuron budget resets. Do try again tomorrow.",
+      },
+      429
     );
   }
 
@@ -723,7 +761,14 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   }
 }
 
-async function handleUsage(env: Env): Promise<Response> {
+type NeuronUsageResult =
+  | { ok: true; used: number; resetAt: string }
+  | { ok: false; error: string; message: string };
+
+// The GraphQL query behind both /usage (display) and the server-side
+// budget check in handleChat (issue #10). Extracted so both paths share
+// exactly one implementation.
+async function fetchNeuronUsage(env: Env): Promise<NeuronUsageResult> {
   const now = new Date();
   const dayStart = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
@@ -778,10 +823,7 @@ async function handleUsage(env: Env): Promise<Response> {
     };
 
     if (payload.errors?.length) {
-      return json(
-        { error: "graphql", details: payload.errors.map((e) => e.message) },
-        502
-      );
+      return { ok: false, error: "graphql", message: payload.errors.map((e) => e.message).join("; ") };
     }
 
     const groups =
@@ -791,17 +833,54 @@ async function handleUsage(env: Env): Promise<Response> {
       0
     );
 
-    return json({
-      used: Math.round(used * 100) / 100,
-      limit: DAILY_NEURON_LIMIT,
-      resetAt: dayEnd.toISOString(),
-    });
+    return { ok: true, used: Math.round(used * 100) / 100, resetAt: dayEnd.toISOString() };
   } catch (err) {
-    return json(
-      { error: "fetch failed", message: (err as Error).message },
-      502
-    );
+    return { ok: false, error: "fetch_failed", message: (err as Error).message || String(err) };
   }
+}
+
+async function handleUsage(env: Env): Promise<Response> {
+  const result = await fetchNeuronUsage(env);
+  if (!result.ok) {
+    return json({ error: result.error, message: result.message }, 502);
+  }
+  return json({ used: result.used, limit: DAILY_NEURON_LIMIT, resetAt: result.resetAt });
+}
+
+// -----------------------------------------------------------------------
+// Server-side daily neuron budget enforcement (issue #10). DAILY_NEURON_LIMIT
+// was previously only ever DISPLAYED in the UI — nothing stopped the Worker
+// from continuing to call the model after the day's budget was spent.
+//
+// The GraphQL usage query is real network I/O we don't want on every single
+// chat turn, so the result is cached in-isolate for USAGE_CACHE_TTL_MS. If
+// a fresh fetch fails, a still-reasonably-fresh cached value is reused (up
+// to USAGE_CACHE_STALE_GRACE_MS) rather than immediately failing; beyond
+// that grace period, or with no cache at all, this fails CLOSED — i.e. it
+// reports usage as "unknown" and handleChat treats that as "do not spend
+// money right now" rather than silently allowing unlimited calls because
+// the budget couldn't be confirmed.
+// -----------------------------------------------------------------------
+
+const USAGE_CACHE_TTL_MS = 45_000;
+const USAGE_CACHE_STALE_GRACE_MS = 5 * 60_000;
+
+let usageCache: { used: number; fetchedAt: number } | null = null;
+
+async function getCachedNeuronUsage(env: Env): Promise<{ ok: true; used: number } | { ok: false }> {
+  const now = Date.now();
+  if (usageCache && now - usageCache.fetchedAt < USAGE_CACHE_TTL_MS) {
+    return { ok: true, used: usageCache.used };
+  }
+  const fresh = await fetchNeuronUsage(env);
+  if (fresh.ok) {
+    usageCache = { used: fresh.used, fetchedAt: now };
+    return { ok: true, used: fresh.used };
+  }
+  if (usageCache && now - usageCache.fetchedAt < USAGE_CACHE_STALE_GRACE_MS) {
+    return { ok: true, used: usageCache.used };
+  }
+  return { ok: false };
 }
 
 function json(data: unknown, status = 200): Response {
