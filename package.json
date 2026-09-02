@@ -8,7 +8,8 @@
     "deploy": "wrangler deploy",
     "types": "wrangler types",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint:regex": "node scripts/check-embedded-regex.mjs"
   },
   "devDependencies": {
     "typescript": "^5.6.3",
