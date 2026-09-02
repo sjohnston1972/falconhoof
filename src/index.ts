@@ -1522,10 +1522,10 @@ const INDEX_HTML = `<!doctype html>
 
     // 2) Common 70B drift around death wording — catch the near-misses so
     // a wobble in format doesn't leave the caller stranded past a death.
-    if (/\byou have died\b/i.test(text)) return true;
-    if (/\byou (?:perish|have perished)\b/i.test(text)) return true;
-    if (/\byour (?:quest|adventure|journey) (?:ends|is over|has ended)\b/i.test(text)) return true;
-    if (/\byou have (?:fallen|been slain)\b/i.test(text)) return true;
+    if (/\\byou have died\\b/i.test(text)) return true;
+    if (/\\byou (?:perish|have perished)\\b/i.test(text)) return true;
+    if (/\\byour (?:quest|adventure|journey) (?:ends|is over|has ended)\\b/i.test(text)) return true;
+    if (/\\byou have (?:fallen|been slain)\\b/i.test(text)) return true;
 
     // 3) Structural fallback — a single »-suggestion that's a restart.
     // If Falconhoof's final turn only offers "start a new adventure" (or
