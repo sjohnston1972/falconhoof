@@ -21,6 +21,85 @@ const MAX_CHAT_MESSAGES = 40; // user+assistant messages, excluding the injected
 const MAX_CHAT_MESSAGE_BYTES = 4_000; // per individual message
 const MAX_CHAT_TOTAL_BYTES = 16_000; // summed across all messages
 
+// -----------------------------------------------------------------------
+// Per-IP rate limiting for /chat and /diag (issue #9).
+//
+// wrangler.toml has no Cloudflare Rate Limiting binding, KV namespace, or
+// Durable Object configured, so this is a portable, IN-ISOLATE sliding
+// window counter keyed on the caller's IP. THIS IS APPROXIMATE, NOT A
+// GLOBAL GUARANTEE: Cloudflare can and does run many isolates for the same
+// Worker across edge locations (and recycles any of them at any time), so
+// a client hitting different PoPs/isolates can exceed this limit in
+// aggregate — each isolate only knows about the requests it personally
+// handled. It still meaningfully blocks the threat this issue is actually
+// about (one script hammering one endpoint), which is also what real
+// single-player traffic looks like (one script, effectively one PoP, for
+// the life of a session).
+//
+// For a hard, edge-wide guarantee, replace this with Cloudflare's native
+// Rate Limiting binding (see the commented example in wrangler.toml) or a
+// KV/Durable-Object token bucket.
+// -----------------------------------------------------------------------
+
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const CHAT_RATE_LIMIT_MAX = 20; // requests/minute/IP — generous for one human player
+const DIAG_RATE_LIMIT_MAX = 5; // requests/minute/IP — a debug probe, not gameplay
+
+interface RateLimitBucket {
+  count: number;
+  resetAt: number;
+}
+const rateLimitBuckets = new Map<string, RateLimitBucket>();
+
+function clientIp(request: Request): string {
+  // Set by Cloudflare's edge on real traffic. Falls back to a shared
+  // bucket for local dev / anything that reaches the Worker without it —
+  // security fails closed (a shared, small limit) rather than open.
+  return request.headers.get("cf-connecting-ip") || "unknown";
+}
+
+function checkRateLimit(
+  key: string,
+  max: number,
+  windowMs: number
+): { allowed: boolean; retryAfterSec: number } {
+  const now = Date.now();
+  // Opportunistic cleanup so the map can't grow unbounded over a long
+  // isolate lifetime.
+  if (rateLimitBuckets.size > 5000) {
+    for (const [k, b] of rateLimitBuckets) {
+      if (now >= b.resetAt) rateLimitBuckets.delete(k);
+    }
+  }
+  const bucket = rateLimitBuckets.get(key);
+  if (!bucket || now >= bucket.resetAt) {
+    rateLimitBuckets.set(key, { count: 1, resetAt: now + windowMs });
+    return { allowed: true, retryAfterSec: 0 };
+  }
+  if (bucket.count >= max) {
+    return { allowed: false, retryAfterSec: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) };
+  }
+  bucket.count++;
+  return { allowed: true, retryAfterSec: 0 };
+}
+
+function rateLimitedResponse(retryAfterSec: number): Response {
+  return new Response(
+    JSON.stringify({
+      error: "rate_limited",
+      message: "Too many calls in a hurry, traveller — the line needs a moment to cool down. Try again shortly.",
+    }),
+    {
+      status: 429,
+      headers: {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+        "retry-after": String(retryAfterSec),
+      },
+    }
+  );
+}
+
 const SYSTEM_PROMPT = `You are FALCONHOOF, the soft-spoken, well-intentioned costumed host of ADVENTURE CALL, a late-night British phone-in television show where callers play a text-adventure for a grand prize of £5,000 cash. The caller you are speaking with right now has phoned in. You are live on air.
 
 ########################################################################
@@ -458,6 +537,11 @@ export default {
     }
 
     if (request.method === "POST" && url.pathname === "/chat") {
+      // Rate limit (issue #9) is checked before anything else in
+      // handleChat — including JSON parsing and the input-size caps — so
+      // an excess request is rejected as cheaply as possible.
+      const rl = checkRateLimit(`chat:${clientIp(request)}`, CHAT_RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS);
+      if (!rl.allowed) return rateLimitedResponse(rl.retryAfterSec);
       return handleChat(request, env);
     }
 
@@ -466,6 +550,11 @@ export default {
     }
 
     if (request.method === "GET" && url.pathname === "/diag") {
+      // Rate limit (issue #9) — /diag spends neurons on every hit (it
+      // probes both models), so it gets a tighter budget than /chat.
+      const rl = checkRateLimit(`diag:${clientIp(request)}`, DIAG_RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS);
+      if (!rl.allowed) return rateLimitedResponse(rl.retryAfterSec);
+
       // Smallest possible AI call to isolate whether 4006 is about neurons,
       // payload size, model availability, or account state.
       const results: Record<string, unknown> = {};

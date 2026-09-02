@@ -11,3 +11,21 @@ binding = "AI"
 
 [observability]
 enabled = true
+
+# Rate limiting (issue #9): no Rate Limiting binding, KV namespace, or
+# Durable Object is configured here today, so src/index.ts falls back to a
+# portable, IN-ISOLATE sliding-window counter (see checkRateLimit() in
+# src/index.ts). That is approximate, not a global guarantee — Cloudflare
+# can run many isolates for this Worker across edge locations. For a hard,
+# edge-wide limit, add Cloudflare's native Rate Limiting binding, e.g.:
+#
+# [[unsafe.bindings]]
+# name = "CHAT_RATE_LIMITER"
+# type = "ratelimit"
+# namespace_id = "1001"
+# simple = { limit = 20, period = 60 }
+#
+# and a second one (a different namespace_id) for /diag, then swap
+# checkRateLimit()'s in-memory Map for env.CHAT_RATE_LIMITER.limit({ key })
+# calls. See:
+# https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/
