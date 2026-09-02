@@ -12,6 +12,15 @@ const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const FALLBACK_MODEL = "@cf/meta/llama-3.1-8b-instruct";
 const DAILY_NEURON_LIMIT = 10000;
 
+// Input caps for POST /chat (issue #8). A real game session is a few dozen
+// short turns; these are generous but bounded, so a crafted request can't
+// drive up prompt-token cost (or blow past the model's context window) by
+// POSTing an oversized history. Enforced BEFORE any env.AI.run call, so a
+// rejected request never costs a neuron.
+const MAX_CHAT_MESSAGES = 40; // user+assistant messages, excluding the injected system prompt
+const MAX_CHAT_MESSAGE_BYTES = 4_000; // per individual message
+const MAX_CHAT_TOTAL_BYTES = 16_000; // summed across all messages
+
 const SYSTEM_PROMPT = `You are FALCONHOOF, the soft-spoken, well-intentioned costumed host of ADVENTURE CALL, a late-night British phone-in television show where callers play a text-adventure for a grand prize of £5,000 cash. The caller you are speaking with right now has phoned in. You are live on air.
 
 ########################################################################
@@ -487,19 +496,47 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   }
 
   const incoming = Array.isArray(body.messages) ? body.messages : [];
-  const messages: ChatMessage[] = [
-    { role: "system", content: SYSTEM_PROMPT },
-    ...incoming.filter(
-      (m) =>
-        m &&
-        (m.role === "user" || m.role === "assistant") &&
-        typeof m.content === "string"
-    ),
-  ];
+  const filteredIncoming = incoming.filter(
+    (m) =>
+      m &&
+      (m.role === "user" || m.role === "assistant") &&
+      typeof m.content === "string"
+  );
 
-  if (messages.length === 1) {
+  if (filteredIncoming.length === 0) {
     return json({ error: "messages[] required" }, 400);
   }
+
+  // Input caps (issue #8) — enforced before any env.AI.run call, so a
+  // rejected request never costs a neuron.
+  if (filteredIncoming.length > MAX_CHAT_MESSAGES) {
+    return json(
+      { error: "too_many_messages", limit: MAX_CHAT_MESSAGES },
+      400
+    );
+  }
+  let totalBytes = 0;
+  for (const m of filteredIncoming) {
+    const bytes = byteLength(m.content);
+    if (bytes > MAX_CHAT_MESSAGE_BYTES) {
+      return json(
+        { error: "message_too_large", limit: MAX_CHAT_MESSAGE_BYTES },
+        400
+      );
+    }
+    totalBytes += bytes;
+  }
+  if (totalBytes > MAX_CHAT_TOTAL_BYTES) {
+    return json(
+      { error: "payload_too_large", limit: MAX_CHAT_TOTAL_BYTES },
+      400
+    );
+  }
+
+  const messages: ChatMessage[] = [
+    { role: "system", content: SYSTEM_PROMPT },
+    ...filteredIncoming,
+  ];
 
   const sseHeaders = {
     "content-type": "text/event-stream",
@@ -686,6 +723,11 @@ function json(data: unknown, status = 200): Response {
       "cache-control": "no-store",
     },
   });
+}
+
+const byteLengthEncoder = new TextEncoder();
+function byteLength(s: string): number {
+  return byteLengthEncoder.encode(s).length;
 }
 
 // -----------------------------------------------------------------------
