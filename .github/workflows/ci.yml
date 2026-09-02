@@ -27,5 +27,8 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Lint embedded client regexes
+        run: npm run lint:regex
+
       - name: Test
         run: npm test
