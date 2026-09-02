@@ -546,25 +546,9 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     return { text: r.response ?? "", usage: r.usage };
   }
 
-  // If the model leaked "You are dead." / "Game over." on a non-death turn,
-  // truncate at the violation and graft on a generic peril cliffhanger so
-  // the caller gets their save attempt instead of an unfair engine bypass.
-  function gateDeath(text: string): string {
-    const deathIdx = text.search(/(?:^|\n)\s*(?:[A-Z][\w '\-]{0,40}:\s*)?\*?\s*(?:You are dead|Game over)\./);
-    if (deathIdx === -1) return text;
-    const lineStart = text.lastIndexOf("\n", deathIdx) + 1;
-    let prefix = text.slice(0, lineStart).trimEnd();
-    // Also nuke any trailing choice block or peril marker the model emitted
-    // alongside the death, so the graft is clean.
-    prefix = prefix
-      .replace(/<\/?c?hoices?>[\s\S]*$/i, "")
-      .replace(/(?:^|\n)\s*\[peril\]\s*(?=\n|$)/gi, "")
-      .replace(/(\n\s*»[^\n]*)+\s*$/g, "")
-      .trimEnd();
-    const perilGraft =
-      "\n\nFalconhoof: *The world tips sideways. Your vision narrows to a dim tunnel, your legs buckle, and your last thought is how close you just came to the end — and yet not quite. Consciousness hangs by a thread.*\n\n» steady yourself\n» try to stay upright\n» cry out for help\n\n[peril]";
-    return prefix + perilGraft;
-  }
+  // gateDeath() is the hoisted, exported, unit-testable function below —
+  // it now shares its phrase set (and is case-insensitive) with the
+  // client's isTerminal(), see issue #6.
 
   // Emit a buffered string as a single SSE stream for client compatibility.
   // Includes `usage` when the buffered AI call returned it (issue #4), so
@@ -702,6 +686,158 @@ function json(data: unknown, status = 200): Response {
       "cache-control": "no-store",
     },
   });
+}
+
+// -----------------------------------------------------------------------
+// Shared death-phrase set — the single source of truth for both the
+// server's gateDeath() (below) and the client's isTerminal() (spliced in
+// as data, not re-typed, inside INDEX_HTML further down). Previously
+// gateDeath only matched the exact strings "You are dead"/"Game over"
+// (case-sensitive) while isTerminal recognised a wider, separately
+// maintained set — so a drifted phrase like "You have died" on a
+// survive/peril turn could leak past the server gate. See issue #6.
+//
+// This is ordinary TypeScript (not text inside the INDEX_HTML template
+// literal), so its regex literals use normal single-backslash escaping —
+// none of the double-escaping rules from issue #5/#7 apply here.
+// -----------------------------------------------------------------------
+
+// Canonical death phrasing the system prompt asks the model to use
+// verbatim on an actual death turn.
+export const DEATH_PHRASES_EXACT: readonly string[] = ["You are dead.", "Game over."];
+
+// Regex source fragments (no outer anchors) for "drifted" near-miss death
+// wording the 70B model sometimes reaches for instead of the exact
+// canonical phrase.
+const DEATH_DRIFT_FRAGMENTS: readonly string[] = [
+  "you have died",
+  "you (?:perish|have perished)",
+  "your (?:quest|adventure|journey) (?:ends|is over|has ended)",
+  "you have (?:fallen|been slain)",
+];
+
+// Word-boundary-wrapped, case-insensitive alternation of the drift
+// fragments. Used by both isTerminal() (client) and gateDeath() (server).
+export const DEATH_DRIFT_RE = new RegExp(`\\b(?:${DEATH_DRIFT_FRAGMENTS.join("|")})\\b`, "i");
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Server-side death gate: matches an exact or drifted death phrase
+// anchored to the start of a narration line (optionally after a
+// "Name: " speaker tag and/or a leading asterisk), so incidental use of
+// these words mid-sentence elsewhere in the narration isn't treated as a
+// death. Case-insensitive so a lowercase drift is still gated (issue #6;
+// the original was case-sensitive and only matched the two exact phrases).
+const DEATH_GATE_RE = new RegExp(
+  "(?:^|\\n)\\s*(?:[A-Z][\\w '\\-]{0,40}:\\s*)?\\*?\\s*(?:" +
+    [
+      ...DEATH_PHRASES_EXACT.map((p) => escapeRegExp(p.replace(/\.$/, ""))),
+      ...DEATH_DRIFT_FRAGMENTS,
+    ].join("|") +
+    ")\\b",
+  "i"
+);
+
+// Buffered survive/peril turns must never let a death leak past the
+// engine's fate roll. If the model violates the directive anyway, truncate
+// at the violation and graft on a generic peril cliffhanger so the caller
+// still gets their save attempt instead of an unfair engine bypass. Uses
+// DEATH_GATE_RE above, so it recognises the same phrase set (case
+// insensitively) as the client's isTerminal() (issue #6). Exported so it
+// can be unit tested directly.
+export function gateDeath(text: string): string {
+  const deathIdx = text.search(DEATH_GATE_RE);
+  if (deathIdx === -1) return text;
+  const lineStart = text.lastIndexOf("\n", deathIdx) + 1;
+  let prefix = text.slice(0, lineStart).trimEnd();
+  // Also nuke any trailing choice block or peril marker the model emitted
+  // alongside the death, so the graft is clean.
+  prefix = prefix
+    .replace(/<\/?c?hoices?>[\s\S]*$/i, "")
+    .replace(/(?:^|\n)\s*\[peril\]\s*(?=\n|$)/gi, "")
+    .replace(/(\n\s*»[^\n]*)+\s*$/g, "")
+    .trimEnd();
+  const perilGraft =
+    "\n\nFalconhoof: *The world tips sideways. Your vision narrows to a dim tunnel, your legs buckle, and your last thought is how close you just came to the end — and yet not quite. Consciousness hangs by a thread.*\n\n» steady yourself\n» try to stay upright\n» cry out for help\n\n[peril]";
+  return prefix + perilGraft;
+}
+
+// -----------------------------------------------------------------------
+// Canonical, exported, unit-testable reference implementations of the
+// client's other parsing/engine helpers (the peril marker and choice
+// parsing). The client below still hand-maintains its own copy of the
+// logic (INDEX_HTML is served as-is to the browser — see issue #1's "out
+// of scope: adding a bundler"), but the SHAPE and behaviour is meant to
+// match these exactly, and these are what a test suite should target.
+// Only the death-phrase DATA (DEATH_PHRASES_EXACT / DEATH_DRIFT_RE above)
+// is literally shared with the client by interpolation today; these are
+// additionally exported so their behaviour can be exercised directly.
+// -----------------------------------------------------------------------
+
+export const PERIL_MARKER = /(?:^|\n)\s*\[peril\]\s*(?=\n|$)/i;
+export function detectPerilMarker(text: string): boolean {
+  return PERIL_MARKER.test(text);
+}
+export function stripPerilMarker(text: string): string {
+  return text.replace(PERIL_MARKER, "");
+}
+
+export const CHOICE_LINE = /^\s*(?:»|>>|->|→|•)\s+(.+?)\s*$/;
+export const TAG_BLOCK = /<\/?c?hoices?>[\s\S]*$/i;
+export const TAG_OPEN = /<\/?c?hoices?>/i;
+
+export function cleanChoiceLine(raw: string): string {
+  return raw
+    .replace(/^[\s»>\-*•\d.)→]+/, "")
+    .replace(/<\/?c?hoices?>?$/i, "")
+    .trim();
+}
+export function isChoiceLike(raw: string): boolean {
+  const s = raw.trim();
+  return s.length > 0 && s.length < 140 && !TAG_OPEN.test(s) && !/^c?hoices?>?$/i.test(s);
+}
+export function parseChoices(text: string): string[] {
+  // Try tag-delimited block first.
+  const tagMatch = text.match(/<\/?c?hoices?>([\s\S]*?)(?:<\/?c?hoices?>|$)/i);
+  if (tagMatch) {
+    const out = tagMatch[1].split("\n").map(cleanChoiceLine).filter(isChoiceLike).slice(0, 6);
+    if (out.length) return out;
+  }
+  // Fall back to trailing »-prefixed lines.
+  const lines = text.split("\n");
+  const collected: string[] = [];
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (line.trim() === "") {
+      if (collected.length === 0) continue;
+      break;
+    }
+    const m = line.match(CHOICE_LINE);
+    if (!m) break;
+    collected.unshift(cleanChoiceLine(m[1]));
+  }
+  return collected.filter(isChoiceLike).slice(0, 6);
+}
+
+// Canonical isTerminal() — behaviourally identical to the client copy
+// inside INDEX_HTML (which is built from the exact same DEATH_PHRASES_EXACT
+// / DEATH_DRIFT_RE constants above). Exported for direct unit testing.
+export function isTerminal(text: string): boolean {
+  for (const phrase of DEATH_PHRASES_EXACT) {
+    if (text.includes(phrase)) return true;
+  }
+  if (DEATH_DRIFT_RE.test(text)) return true;
+
+  const choices = text.match(/^\s*»\s+(.+?)\s*$/gm) || [];
+  if (choices.length === 1) {
+    const c = choices[0].replace(/^\s*»\s+/, "").toLowerCase();
+    if (/\bnew (?:adventure|quest|game|call)\b/.test(c)) return true;
+    if (/\b(?:start|begin|play) (?:over|again)\b/.test(c)) return true;
+    if (/\btry (?:another|again)\b/.test(c)) return true;
+  }
+  return false;
 }
 
 const INDEX_HTML = `<!doctype html>
@@ -1515,17 +1651,25 @@ const INDEX_HTML = `<!doctype html>
   // "Game over." (compliance-triggered endings, e.g. the caller kills
   // Jingle). On those turns we offer only one option — restart — and route
   // the click into a full reset of history and log.
+  //
+  // DEATH_PHRASES_EXACT and DEATH_DRIFT_RE below are NOT hand-typed here —
+  // they are interpolated (as plain data: an array literal and a compiled
+  // regex's own toString()) directly from the server's exported, canonical
+  // constants of the same name, so this copy can never list a different
+  // phrase set than gateDeath() uses server-side (issue #6). Because this
+  // splices in the regex object's own source text verbatim, there is also
+  // no hand-written \\b escaping here for issue #5/#7 to ever regress.
+  const DEATH_PHRASES_EXACT = ${JSON.stringify(DEATH_PHRASES_EXACT)};
+  const DEATH_DRIFT_RE = ${DEATH_DRIFT_RE};
   function isTerminal(text) {
     // 1) Canonical prescribed phrases — what the prompt asks for.
-    if (text.includes('You are dead.')) return true;
-    if (text.includes('Game over.')) return true;
+    for (const phrase of DEATH_PHRASES_EXACT) {
+      if (text.includes(phrase)) return true;
+    }
 
     // 2) Common 70B drift around death wording — catch the near-misses so
     // a wobble in format doesn't leave the caller stranded past a death.
-    if (/\\byou have died\\b/i.test(text)) return true;
-    if (/\\byou (?:perish|have perished)\\b/i.test(text)) return true;
-    if (/\\byour (?:quest|adventure|journey) (?:ends|is over|has ended)\\b/i.test(text)) return true;
-    if (/\\byou have (?:fallen|been slain)\\b/i.test(text)) return true;
+    if (DEATH_DRIFT_RE.test(text)) return true;
 
     // 3) Structural fallback — a single »-suggestion that's a restart.
     // If Falconhoof's final turn only offers "start a new adventure" (or
